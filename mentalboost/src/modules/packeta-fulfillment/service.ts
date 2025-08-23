@@ -3,10 +3,13 @@ import {
   Logger,
   FulfillmentOption,
   CreateShippingOptionDTO,
-  CalculateShippingOptionPriceDTO,
-  CalculatedShippingOptionPrice,
-  CreateFulfillmentResult
+  CreateFulfillmentResult,
+  LineItem,
+  Fulfillment,
+  Order
 } from "@medusajs/framework/types"
+import { PacketaPickupPoint, PacketaPacketData, PacketaPacketResponse } from "./types"
+import { Builder, Parser } from "xml2js"
 
 type InjectedDependencies = {
   logger: Logger
@@ -19,19 +22,6 @@ type PacketaOptions = {
   baseUrl?: string
 }
 
-export interface PacketaPickupPoint {
-  id: number
-  name: string
-  street: string
-  city: string
-  zip: string
-  country: string
-  latitude: number
-  longitude: number
-  openingHours: {
-    [key: string]: string
-  }
-}
 
 const packeta_options = [
   {
@@ -81,7 +71,7 @@ class PacketaFulfillmentService extends AbstractFulfillmentProviderService {
     data: any,
     context: any
   ): Promise<any> {
-    if (optionData.requires_point_id && !data?.pickupPointId) {
+    if (optionData.requires_point_id && !data?.pickup_point_id) {
       throw new Error(`${optionData.name} requires pickup point id.`)
     }
 
@@ -100,22 +90,29 @@ class PacketaFulfillmentService extends AbstractFulfillmentProviderService {
     }
   }
 
-  async createFulfillment(data: Record<string, unknown>): Promise<CreateFulfillmentResult> {
+  async createFulfillment(
+    data: Record<string, unknown>,
+    items: LineItem[],
+    order: Order,
+    fulfillment: Fulfillment
+  ): Promise<CreateFulfillmentResult> {
     try {
-      // In production, this would create a shipment in Packeta's system
-      const mockShipmentId = `PKT_${Date.now()}`
+      this.logger_.info(`Creating Packeta fulfillment ${data}`)
 
-      this.logger_.info("Creating Packeta fulfillment")
+      this.logger_.log(JSON.stringify(items))
+      this.logger_.log(JSON.stringify(order))
+      this.logger_.log(JSON.stringify(fulfillment))
 
-      // Here you would integrate with Packeta API:
-      // const shipment = await this.createPacketaShipment(data)
+      // Create packet in Packeta's system
+      const packet = await this.createPacketaPacket(data, items, order, fulfillment)
 
       return {
         data: {
           ...data,
-          packeta_shipment_id: mockShipmentId,
-          tracking_number: mockShipmentId,
+          packeta_shipment_id: packet.packetId,
+          tracking_number: packet.packetId,
           pickup_point_id: data.pickupPointId,
+          barcode: packet.barcode,
           created_at: new Date().toISOString(),
         },
         labels: [] // Packeta labels would be retrieved separately
@@ -160,6 +157,161 @@ class PacketaFulfillmentService extends AbstractFulfillmentProviderService {
       }
     } catch (error) {
       this.logger_.error("Failed to create Packeta return fulfillment", error)
+      throw error
+    }
+  }
+
+  private async createPacketaPacket(
+    data: Record<string, unknown>,
+    items: LineItem[],
+    order: Order,
+    fulfillment: Fulfillment
+  ): Promise<PacketaPacketResponse> {
+    const { apiPassword, senderId, baseUrl } = this.options_
+
+    if (!apiPassword) {
+      throw new Error("Packeta API password is required")
+    }
+
+    this.logger_.info("Creating Packeta packet", {
+      orderId: order.id,
+      pickupPointId: data.pickup_point_id,
+      itemsCount: items.length
+    })
+
+    // Extract shipping method data to get pickup point ID
+    const shippingMethod = order.shipping_methods?.[0]
+    const pickupPointId = shippingMethod?.data?.pickupPointId || data.pickup_point_id
+
+    // Calculate total value from items
+    const totalValue = items.reduce((sum: number, item: any) => {
+      return sum + (item.unit_price * item.quantity)
+    }, 0)
+
+    // Calculate total weight (if available)
+    const totalWeight = items.reduce((sum: number, item: any) => {
+      return sum + ((item.variant?.weight || 0) * item.quantity)
+    }, 0)
+
+    const requestBody = {
+      createPacket: {
+        apiPassword: apiPassword,
+        packetAttributes: {
+          addressId: parseInt(pickupPointId) || 0,
+          carrierPickupPoint: pickupPointId,
+          name: fulfillment.delivery_address?.first_name || order.shipping_address?.first_name || "Unknown",
+          surname: fulfillment.delivery_address?.last_name || order.shipping_address?.last_name || "Customer",
+          phone: fulfillment.delivery_address?.phone || order.shipping_address?.phone || "",
+          email: order.customer?.email || order.shipping_address?.email || "",
+          cod: undefined, // Set COD amount if needed
+          value: totalValue / 100, // Convert from cents to currency units
+          weight: totalWeight || 1, // Default to 1kg if no weight specified
+          eshop: senderId || "mental-boost",
+          number: order.display_id?.toString() || order.id,
+          size: {
+            width: 10, // Default package dimensions in cm
+            height: 10,
+            length: 10
+          }
+        }
+      }
+    }
+
+    try {
+      const response = await fetch(baseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/xml"
+        },
+        body: new Builder().buildObject(requestBody)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Packeta API error: ${response.status} ${response.statusText} - ${errorText}`)
+      }
+
+      const responseText = await response.text()
+      const responseBody = await new Parser({ explicitArray: false }).parseStringPromise(responseText)
+
+      this.logger_.info("Packeta packet created successfully", {
+        response: responseBody,
+        orderId: order.id
+      })
+
+      // Extract packet ID from response
+      const packetId = responseBody?.result?.id || responseBody?.id
+
+      return {
+        packetId: packetId?.toString(),
+        barcode: packetId?.toString()
+      }
+    } catch (error) {
+      this.logger_.error("Failed to create Packeta packet", { error, requestBody })
+      throw error
+    }
+  }
+
+  async getShipmentDocuments(data: Record<string, unknown>): Promise<any> {
+    try {
+      const { apiPassword, baseUrl } = this.options_
+
+      if (!apiPassword) {
+        throw new Error("Packeta API password is required")
+      }
+
+      const packetId = (data as any).packeta_shipment_id
+      if (!packetId) {
+        throw new Error("Packeta shipment ID is required to retrieve documents")
+      }
+
+      this.logger_.info("Retrieving Packeta label", { packetId })
+
+      const requestBody = {
+        packetLabelPdf: {
+          apiPassword: apiPassword,
+          packetId: packetId,
+          format: "A6 on A6",
+          offset: 0
+        }
+      }
+
+      const response = await fetch(baseUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/xml"
+        },
+        body: new Builder().buildObject(requestBody)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Packeta API error: ${response.status} ${response.statusText} - ${errorText}`)
+      }
+
+      const responseText = await response.text()
+      const responseBody = await new Parser({ explicitArray: false }).parseStringPromise(responseText)
+
+      if (responseBody.response?.status === "ok") {
+        const pdfBase64 = responseBody.response.result
+        const pdfBuffer = Buffer.from(pdfBase64, 'base64')
+
+        this.logger_.info("Packeta label retrieved successfully", { 
+          packetId,
+          documentSize: pdfBuffer.length 
+        })
+
+        return [{
+          name: `packeta-label-${packetId}.pdf`,
+          base_64: pdfBase64,
+          type: "application/pdf"
+        }]
+      } else {
+        throw new Error(`Packeta API returned error: ${responseBody.response?.fault || "Unknown error"}`)
+      }
+
+    } catch (error) {
+      this.logger_.error("Failed to retrieve Packeta documents", error)
       throw error
     }
   }

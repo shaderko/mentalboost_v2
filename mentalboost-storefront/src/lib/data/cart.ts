@@ -228,7 +228,7 @@ export async function setShippingMethod({
   }
 
   return sdk.store.cart
-    .addShippingMethod(cartId, { option_id: shippingMethodId, data: { pickupPointId: pId } }, {}, headers)
+    .addShippingMethod(cartId, { option_id: shippingMethodId, data: { pickup_point_id: pId } }, {}, headers)
     .then(async () => {
       const cartCacheTag = await getCacheTag("carts")
       revalidateTag(cartCacheTag)

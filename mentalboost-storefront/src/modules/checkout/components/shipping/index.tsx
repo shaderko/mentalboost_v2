@@ -11,10 +11,21 @@ import ErrorMessage from "@modules/checkout/components/error-message"
 import Divider from "@modules/common/components/divider"
 import MedusaRadio from "@modules/common/components/radio"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 
 const PICKUP_OPTION_ON = "__PICKUP_ON"
 const PICKUP_OPTION_OFF = "__PICKUP_OFF"
+
+// Packeta widget type declaration
+declare global {
+  interface Window {
+    Packeta: {
+      Widget: {
+        pick: (config: any, callback: (pickupPoint: any) => void) => HTMLElement | null
+      }
+    }
+  }
+}
 
 type ShippingProps = {
   cart: HttpTypes.StoreCart
@@ -63,6 +74,8 @@ const Shipping: React.FC<ShippingProps> = ({
   const [shippingMethodId, setShippingMethodId] = useState<string | null>(
     cart.shipping_methods?.at(-1)?.shipping_option_id || null
   )
+  const [selectedPickupPoint, setSelectedPickupPoint] = useState<any>(null)
+  const packetaRef = useRef<HTMLDivElement>(null)
 
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -116,7 +129,8 @@ const Shipping: React.FC<ShippingProps> = ({
 
   const handleSetShippingMethod = async (
     id: string,
-    variant: "shipping" | "pickup"
+    variant: "shipping" | "pickup",
+    pId?: string
   ) => {
     setError(null)
 
@@ -133,7 +147,7 @@ const Shipping: React.FC<ShippingProps> = ({
       return id
     })
 
-    await setShippingMethod({ cartId: cart.id, shippingMethodId: id })
+    await setShippingMethod({ cartId: cart.id, shippingMethodId: id, pId })
       .catch((err) => {
         setShippingMethodId(currentId)
 
@@ -147,6 +161,23 @@ const Shipping: React.FC<ShippingProps> = ({
   useEffect(() => {
     setError(null)
   }, [isOpen])
+
+  const openPacketaWidget = (pf: (pickupPoint: any) => void) => {
+    if (window.Packeta) {
+      const widget = window.Packeta.Widget.pick(
+        {
+          apiKey: process.env.NEXT_PUBLIC_PACKETA_API_KEY, // You'll need to set this
+          country: cart.shipping_address?.country_code || 'CZ', // Default to CZ, adjust based on your needs
+        },
+        pf
+      )
+
+      if (widget) {
+        packetaRef.current.innerHTML = ''
+        packetaRef.current.appendChild(widget)
+      }
+    }
+  }
 
   return (
     <div className="bg-white">
@@ -234,7 +265,19 @@ const Shipping: React.FC<ShippingProps> = ({
                 )}
                 <RadioGroup
                   value={shippingMethodId}
-                  onChange={(v) => handleSetShippingMethod(v, "shipping")}
+                  onChange={(v) => {
+                    const option = _shippingMethods?.find((o) => o.id === v);
+                    if (!option) return;
+
+                    if (option.provider.id === "packeta_packeta" && option.provider.is_enabled) {
+                      openPacketaWidget((pickupPoint) => handleSetShippingMethod(v, "shipping", pickupPoint.id))
+                      // We handle the selection in the widget
+                      return
+                    }
+
+                    handleSetShippingMethod(v, "shipping")
+                  }
+                  }
                 >
                   {_shippingMethods?.map((option) => {
                     const isDisabled =
@@ -295,11 +338,30 @@ const Shipping: React.FC<ShippingProps> = ({
             <div className="grid">
               <div className="flex flex-col">
                 <span className="font-medium txt-medium text-ui-fg-base">
-                  Store
+                  Pickup Points
                 </span>
                 <span className="mb-4 text-ui-fg-muted txt-medium">
-                  Choose a store near you
+                  Choose a pickup point near you
                 </span>
+              </div>
+
+              {/* Packeta Widget Container */}
+              <div className="mb-6">
+                <div ref={packetaRef} className="min-h-[400px] border rounded-rounded p-4">
+                  {!selectedPickupPoint && (
+                    <div className="text-center text-ui-fg-muted py-8">
+                      Loading pickup points...
+                    </div>
+                  )}
+                </div>
+                {selectedPickupPoint && (
+                  <div className="mt-4 p-4 bg-ui-bg-subtle rounded-rounded">
+                    <p className="font-medium">Selected pickup point:</p>
+                    <p>{selectedPickupPoint.name}</p>
+                    <p>{selectedPickupPoint.street} {selectedPickupPoint.houseNumber}</p>
+                    <p>{selectedPickupPoint.zip} {selectedPickupPoint.city}</p>
+                  </div>
+                )}
               </div>
               <div data-testid="delivery-options-container">
                 <div className="pb-8 md:pt-0 pt-2">
@@ -308,6 +370,7 @@ const Shipping: React.FC<ShippingProps> = ({
                     onChange={(v) => handleSetShippingMethod(v, "pickup")}
                   >
                     {_pickupMethods?.map((option) => {
+                      console.log(option)
                       return (
                         <Radio
                           key={option.id}

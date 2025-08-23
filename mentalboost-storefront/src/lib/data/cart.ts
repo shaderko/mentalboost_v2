@@ -217,16 +217,18 @@ export async function deleteLineItem(lineId: string) {
 export async function setShippingMethod({
   cartId,
   shippingMethodId,
+  pId
 }: {
   cartId: string
-  shippingMethodId: string
+  shippingMethodId: string,
+  pId?: string
 }) {
   const headers = {
     ...(await getAuthHeaders()),
   }
 
   return sdk.store.cart
-    .addShippingMethod(cartId, { option_id: shippingMethodId }, {}, headers)
+    .addShippingMethod(cartId, { option_id: shippingMethodId, data: { pickupPointId: pId } }, {}, headers)
     .then(async () => {
       const cartCacheTag = await getCacheTag("carts")
       revalidateTag(cartCacheTag)

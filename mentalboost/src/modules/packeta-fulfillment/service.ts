@@ -37,7 +37,7 @@ const packeta_options = [
   {
     id: "packeta-pickup",
     name: "Packeta Pickup Point",
-    requires_point_id: true
+    requires_point_id: true,
   },
   {
     id: "packeta-delivery",
@@ -71,32 +71,9 @@ class PacketaFulfillmentService extends AbstractFulfillmentProviderService {
     return packeta_options.map((p) => p.id).includes(data.id)
   }
 
+  // In the future we could calculate the shipping price of different countries
   async canCalculate(_: CreateShippingOptionDTO): Promise<boolean> {
-    return true
-  }
-
-  async calculatePrice(
-    optionData: CalculateShippingOptionPriceDTO["optionData"],
-    data: CalculateShippingOptionPriceDTO["data"],
-    context: CalculateShippingOptionPriceDTO["context"]
-  ): Promise<CalculatedShippingOptionPrice> {
-    // Basic pricing logic
-    let basePrice = 299 // €2.99 in cents for pickup points
-
-    // Check if it's home delivery
-    if (optionData?.id === "packeta-home" || (data?.option_type && String(data.option_type).includes("home"))) {
-      basePrice = 599 // €5.99 in cents for home delivery
-    }
-
-    // You can implement more complex pricing based on:
-    // - Weight: context.cart?.items
-    // - Destination: context.to_address
-    // - Cart value, etc.
-
-    return {
-      calculated_amount: basePrice,
-      is_calculated_price_tax_inclusive: false
-    }
+    return false
   }
 
   async validateFulfillmentData(

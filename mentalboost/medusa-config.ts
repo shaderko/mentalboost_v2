@@ -40,7 +40,6 @@ module.exports = defineConfig({
             resolve: "./src/modules/packeta-fulfillment",
             id: "packeta",
             options: {
-              apiKey: process.env.PACKETA_API_KEY,
               apiPassword: process.env.PACKETA_API_PASSWORD,
               senderId: process.env.PACKETA_SENDER_ID,
               baseUrl: process.env.PACKETA_BASE_URL,

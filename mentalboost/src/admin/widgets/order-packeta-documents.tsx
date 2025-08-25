@@ -13,33 +13,29 @@ const OrderPacketaDocuments = ({ data }: DetailWidgetProps<AdminOrder>) => {
     return null
   }
 
-  const downloadDocument = async (fulfillmentId: string) => {
+  const printDocument = async (fulfillmentId: string) => {
     try {
       const response = await fetch(`/admin/fulfillments/${fulfillmentId}/documents`)
       
       if (!response.ok) {
-        throw new Error(`Failed to download document: ${response.statusText}`)
+        throw new Error(`Failed to fetch document: ${response.statusText}`)
       }
 
-      // Get filename from response headers
-      const contentDisposition = response.headers.get('content-disposition')
-      const filename = contentDisposition 
-        ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
-        : `packeta-label-${fulfillmentId}.pdf`
-
-      // Create blob and download
+      // Create blob URL and open in new window for printing
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const printWindow = window.open(url, '_blank')
+      
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print()
+        }
+      } else {
+        alert('Please allow popups to print the document.')
+      }
     } catch (error) {
-      console.error('Error downloading document:', error)
-      alert('Failed to download document. Please try again.')
+      console.error('Error printing document:', error)
+      alert('Failed to print document. Please try again.')
     }
   }
 
@@ -64,9 +60,9 @@ const OrderPacketaDocuments = ({ data }: DetailWidgetProps<AdminOrder>) => {
           <Button
             variant="secondary"
             size="small"
-            onClick={() => downloadDocument(fulfillment.id)}
+            onClick={() => printDocument(fulfillment.id)}
           >
-            Download Label
+            Print Label
           </Button>
         </div>
       ))}

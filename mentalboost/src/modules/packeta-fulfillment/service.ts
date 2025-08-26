@@ -89,17 +89,21 @@ class PacketaFulfillmentService extends AbstractFulfillmentProviderService {
         return sum + (item.variant?.weight || 0) * item.quantity;
       }, 0);
 
+      console.log(order)
+      console.log(fulfillment)
+      console.log(data)
+
       const packet = await this.client.create(
         {
-          addressId: order?.shipping_address?.id,
+          addressId: data.pickup_point_id,
           carrierPickupPoint: data.pickup_point_id,
           name: fulfillment.delivery_address?.first_name,
           surname: fulfillment.delivery_address?.last_name,
           phone: fulfillment.delivery_address?.phone,
-          email: order?.email,
-          cod: order?.item_total,
+          email: order?.customer?.email,
+          cod: 0,
           value: order?.item_total,
-          weight: totalWeight,
+          weight: totalWeight || 1,
           number: order?.id,
           size: {
             width: 10,
@@ -131,6 +135,7 @@ class PacketaFulfillmentService extends AbstractFulfillmentProviderService {
       this.logger_.info('Canceling Packeta fulfillment');
 
       const packetId = (data as any).packeta_shipment_id || (data as any).tracking_number;
+      console.log("fulfillment", packetId)
 
       if (!packetId) {
         throw new MedusaError(

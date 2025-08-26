@@ -23,42 +23,44 @@ class PacketaClient {
       }
     };
 
-    try {
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/xml'
-        },
-        body: new Builder().buildObject(requestBody)
-      });
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/xml'
+      },
+      body: new Builder().buildObject(requestBody)
+    });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `Packeta API error: ${response.status} ${response.statusText} - ${errorText}`
-        );
-      }
-
-      const responseBody = await new Parser({
-        explicitArray: false
-      }).parseStringPromise(await response.text());
-
-      return {
-        packetId: responseBody.response?.result?.id,
-        barcode: responseBody.response?.result?.barcode
-      };
-    } catch (error) {
-      throw error;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Packeta API error: ${response.status} ${response.statusText} - ${errorText}`
+      );
     }
+
+    const text = await response.text();
+    console.log(text)
+
+    const responseBody = await new Parser({
+      explicitArray: false
+    }).parseStringPromise(text);
+
+    return {
+      packetId: responseBody.response?.result?.id,
+      barcode: responseBody.response?.result?.barcode
+    };
   }
 
   async cancel(packetId: string) {
     const requestBody = {
-      packetDelete: {
+      cancelPacket: {
         apiPassword: this.apiPassword,
         packetId
       }
     };
+
+    console.log(requestBody)
+    console.log(packetId)
 
     const response = await fetch(this.baseUrl, {
       method: 'POST',
@@ -75,9 +77,12 @@ class PacketaClient {
       );
     }
 
+    const text = await response.text()
+    console.log(text)
+
     const responseBody = await new Parser({
       explicitArray: false
-    }).parseStringPromise(await response.text());
+    }).parseStringPromise(text);
 
     if (responseBody.response?.status !== 'ok') {
       throw new Error(

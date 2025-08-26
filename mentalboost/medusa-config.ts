@@ -48,8 +48,8 @@ module.exports = defineConfig({
         ],
       },
     },
-    [Modules.TAX]: {
-      resolve: "@medusajs/tax",
-    },
+    loyalty: {
+      resolve: "./src/modules/loyalty"
+    }
   },
 });

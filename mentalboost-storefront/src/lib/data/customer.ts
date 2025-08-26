@@ -259,3 +259,19 @@ export const updateCustomerAddress = async (
       return { success: false, error: err.toString() }
     })
 }
+
+export const getLoyaltyPoints = async () => {
+  const headers = {
+    ...(await getAuthHeaders()),
+  }
+
+  return sdk.client.fetch<{ points: number }>(
+    `/store/customers/me/loyalty-points`,
+    {
+      method: "GET",
+      headers,
+    }
+  )
+    .then(({ points }) => points)
+    .catch(() => null)
+}

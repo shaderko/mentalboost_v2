@@ -40,9 +40,11 @@ completeCartWorkflow.hooks.validate(
     const customerLoyaltyPoints = await loyaltyModuleService.getPoints(
       carts[0].customer!.id
     )
-    const requiredPoints = await loyaltyModuleService.calculatePointsFromAmount(
+    const requiredPoints = await loyaltyModuleService.calculatePointsFromAmountActual(
       loyaltyPromo.application_method!.value as number
     )
+
+    console.log("REQUIRED", requiredPoints)
 
     if (customerLoyaltyPoints < requiredPoints) {
       throw new MedusaError(

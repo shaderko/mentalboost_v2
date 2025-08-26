@@ -51,9 +51,12 @@ class LoyaltyModuleService extends MedusaService({
     return points[0]?.points || 0
   }
 
+  /*
+  * This function is used when we are giving points to the user
+  */
   async calculatePointsFromAmount(amount: number): Promise<number> {
     // Convert amount to points, we can assume if we are giving points the user is registered
-    const points = Math.floor(amount)
+    const points = Math.floor(amount * 25)
 
     if (points < 0) {
       throw new MedusaError(
@@ -63,6 +66,30 @@ class LoyaltyModuleService extends MedusaService({
     }
 
     return points
+  }
+
+  /*
+  * This function is used when we are calculating the deduction of points on order
+  */
+  async calculatePointsFromAmountActual(amount: number): Promise<number> {
+    const points = Math.floor(amount * 100)
+
+    if (points < 0) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "Amount cannot be negative")
+    }
+
+    return points
+  }
+
+  async calculateAmountFromPoints(points: number): Promise<number> {
+    // Convert points to actual eur amount
+    const amount = points / 100
+
+    if (amount < 0) {
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, "Points would give negative result")
+    }
+
+    return amount
   }
 }
 

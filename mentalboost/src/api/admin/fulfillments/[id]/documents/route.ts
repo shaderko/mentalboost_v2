@@ -7,6 +7,14 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
   const fulfillmentId = req.params.id;
 
   try {
+    if (process.env.PACKETA_API_PASSWORD === undefined ||
+        process.env.PACKETA_SENDER_ID === undefined || process.env.PACKETA_BASE_URL === undefined) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        'Packeta API credentials are not set in environment variables'
+      );
+    }
+
     const fulfillmentModuleService = req.scope.resolve(Modules.FULFILLMENT);
 
     const fulfillment = await fulfillmentModuleService.retrieveFulfillment(
@@ -39,7 +47,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
       fulfillment.data?.packeta_shipment_id ||
       fulfillment.data?.tracking_number;
 
-    if (!hasPacketId) {
+    if (!hasPacketId || !fulfillment.data) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         'Packet was not created in Packeta system. Please check if the fulfillment was processed correctly and the Packeta API is configured properly.'

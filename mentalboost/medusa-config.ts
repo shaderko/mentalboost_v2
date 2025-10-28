@@ -63,6 +63,9 @@ module.exports = defineConfig({
         companyId: process.env.SUPERFAKTURA_COMPANY_ID,
         baseUrl: process.env.SUPERFAKTURA_BASE_URL || "https://moja.superfaktura.sk",
       },
+    },
+    blog: {
+      resolve: "./src/modules/blog"
     }
   },
 });

@@ -33,6 +33,13 @@ export default async function Nav() {
             <div className="hidden small:flex items-center gap-x-6 h-full">
               <LocalizedClientLink
                 className="hover:text-ui-fg-base"
+                href="/blog"
+                data-testid="nav-blog-link"
+              >
+                Blog
+              </LocalizedClientLink>
+              <LocalizedClientLink
+                className="hover:text-ui-fg-base"
                 href="/account"
                 data-testid="nav-account-link"
               >

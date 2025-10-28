@@ -1,91 +1,45 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Button, Table, Badge, Text } from "@medusajs/ui"
-import { useState, useEffect } from "react"
+import { Container, Heading, Button, Table, Badge, Text, usePrompt } from "@medusajs/ui"
 import { PencilSquare, Trash, Plus } from "@medusajs/icons"
 import { useNavigate } from "react-router-dom"
+import {
+  useBlogPosts,
+  useDeleteBlogPost,
+  usePublishBlogPost,
+  useUnpublishBlogPost
+} from "../../hooks/use-blog-posts"
 
 const BlogListPage = () => {
   const navigate = useNavigate()
-  const [posts, setPosts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const prompt = usePrompt()
 
-  useEffect(() => {
-    fetchPosts()
-  }, [])
+  const { data, isLoading, error } = useBlogPosts()
+  const { mutate: deleteBlogPost } = useDeleteBlogPost()
+  const { mutate: publishBlogPost } = usePublishBlogPost()
+  const { mutate: unpublishBlogPost } = useUnpublishBlogPost()
 
-  const fetchPosts = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch("/admin/blog-posts", {
-        credentials: "include",
-      })
-      const data = await response.json()
-      setPosts(data.blog_posts || [])
-    } catch (err) {
-      setError("Failed to load blog posts")
-      console.error(err)
-    } finally {
-      setLoading(false)
+  const posts = data?.blog_posts || []
+
+  const handleDelete = async (id: string, title: string) => {
+    const confirmed = await prompt({
+      title: "Delete Blog Post",
+      description: `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+      variant: "danger",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+    })
+
+    if (confirmed) {
+      deleteBlogPost(id)
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this blog post?")) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/admin/blog-posts/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      })
-
-      if (response.ok) {
-        fetchPosts()
-      } else {
-        alert("Failed to delete blog post")
-      }
-    } catch (err) {
-      console.error(err)
-      alert("Failed to delete blog post")
-    }
+  const handlePublish = (id: string) => {
+    publishBlogPost(id)
   }
 
-  const handlePublish = async (id: string) => {
-    try {
-      const response = await fetch(`/admin/blog-posts/${id}/publish`, {
-        method: "POST",
-        credentials: "include",
-      })
-
-      if (response.ok) {
-        fetchPosts()
-      } else {
-        alert("Failed to publish blog post")
-      }
-    } catch (err) {
-      console.error(err)
-      alert("Failed to publish blog post")
-    }
-  }
-
-  const handleUnpublish = async (id: string) => {
-    try {
-      const response = await fetch(`/admin/blog-posts/${id}/unpublish`, {
-        method: "POST",
-        credentials: "include",
-      })
-
-      if (response.ok) {
-        fetchPosts()
-      } else {
-        alert("Failed to unpublish blog post")
-      }
-    } catch (err) {
-      console.error(err)
-      alert("Failed to unpublish blog post")
-    }
+  const handleUnpublish = (id: string) => {
+    unpublishBlogPost(id)
   }
 
   const getStatusBadge = (status: string) => {
@@ -101,7 +55,7 @@ const BlogListPage = () => {
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Container>
         <div className="flex items-center justify-center p-8">
@@ -115,7 +69,7 @@ const BlogListPage = () => {
     return (
       <Container>
         <div className="flex items-center justify-center p-8">
-          <Text className="text-red-500">{error}</Text>
+          <Text className="text-red-500">Failed to load blog posts</Text>
         </div>
       </Container>
     )
@@ -127,7 +81,7 @@ const BlogListPage = () => {
         <Heading level="h1">Blog Posts</Heading>
         <Button
           variant="secondary"
-          onClick={() => navigate("/blog/new")}
+          onClick={() => navigate("/blog/create")}
         >
           <Plus />
           Create New Post
@@ -137,7 +91,7 @@ const BlogListPage = () => {
       {posts.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 border border-dashed rounded-lg">
           <Text className="text-ui-fg-subtle mb-4">No blog posts yet. Create your first post!</Text>
-          <Button onClick={() => navigate("/blog/new")}>
+          <Button onClick={() => navigate("/blog/create")}>
             <Plus />
             Create Post
           </Button>
@@ -199,7 +153,7 @@ const BlogListPage = () => {
                     <Button
                       variant="transparent"
                       size="small"
-                      onClick={() => handleDelete(post.id)}
+                      onClick={() => handleDelete(post.id, post.title)}
                     >
                       <Trash className="text-ui-fg-error" />
                     </Button>

@@ -1,16 +1,14 @@
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { Container, Heading, Button, Input, Textarea, Label, Select, Text, toast } from "@medusajs/ui"
-import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { Container, Heading, Button, Input, Textarea, Label, Select, toast } from "@medusajs/ui"
+import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { ArrowLeft } from "@medusajs/icons"
-import { useBlogPost, useUpdateBlogPost } from "../../../hooks/use-blog-posts"
+import { useCreateBlogPost } from "../../../hooks/use-blog-posts"
 
-const BlogPostEditPage = () => {
-  const { id } = useParams()
+const BlogPostCreatePage = () => {
   const navigate = useNavigate()
 
-  const { data, isLoading } = useBlogPost(id!)
-  const { mutate: updateBlogPost, isPending: isSaving } = useUpdateBlogPost(id!, {
+  const { mutate: createBlogPost, isPending: isSaving } = useCreateBlogPost({
     onSuccess: () => {
       navigate("/blog")
     },
@@ -28,24 +26,17 @@ const BlogPostEditPage = () => {
     meta_description: "",
   })
 
-  useEffect(() => {
-    if (data?.blog_post) {
-      setFormData({
-        title: data.blog_post.title || "",
-        slug: data.blog_post.slug || "",
-        excerpt: data.blog_post.excerpt || "",
-        content: data.blog_post.content || "",
-        featured_image: data.blog_post.featured_image || "",
-        status: data.blog_post.status || "draft",
-        author: data.blog_post.author || "",
-        meta_title: data.blog_post.meta_title || "",
-        meta_description: data.blog_post.meta_description || "",
-      })
-    }
-  }, [data])
-
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+
+    // Auto-generate slug from title
+    if (field === "title") {
+      const slug = value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+      setFormData((prev) => ({ ...prev, slug }))
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -56,17 +47,7 @@ const BlogPostEditPage = () => {
       return
     }
 
-    updateBlogPost(formData)
-  }
-
-  if (isLoading) {
-    return (
-      <Container>
-        <div className="flex items-center justify-center p-8">
-          Loading...
-        </div>
-      </Container>
-    )
+    createBlogPost(formData)
   }
 
   return (
@@ -79,7 +60,7 @@ const BlogPostEditPage = () => {
           >
             <ArrowLeft />
           </Button>
-          <Heading level="h1">Edit Blog Post</Heading>
+          <Heading level="h1">Create New Blog Post</Heading>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -104,9 +85,9 @@ const BlogPostEditPage = () => {
                 placeholder="blog-post-url-slug"
                 required
               />
-              <Text className="text-xs text-ui-fg-subtle mt-1">
+              <p className="text-xs text-ui-fg-subtle mt-1">
                 URL: /store/blog-posts/{formData.slug || "your-slug"}
-              </Text>
+              </p>
             </div>
 
             <div className="col-span-2">
@@ -203,7 +184,7 @@ const BlogPostEditPage = () => {
 
           <div className="flex gap-4 pt-4 border-t">
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Update Post"}
+              {isSaving ? "Creating..." : "Create Post"}
             </Button>
             <Button
               type="button"
@@ -220,7 +201,7 @@ const BlogPostEditPage = () => {
 }
 
 export const config = defineRouteConfig({
-  label: "Edit Blog Post",
+  label: "Create Blog Post",
 })
 
-export default BlogPostEditPage
+export default BlogPostCreatePage

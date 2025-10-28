@@ -54,6 +54,18 @@ module.exports = defineConfig({
     },
     loyalty: {
       resolve: "./src/modules/loyalty"
+    },
+    invoice: {
+      resolve: "./src/modules/invoice",
+      options: {
+        email: process.env.SUPERFAKTURA_EMAIL,
+        apiKey: process.env.SUPERFAKTURA_API_KEY,
+        companyId: process.env.SUPERFAKTURA_COMPANY_ID,
+        baseUrl: process.env.SUPERFAKTURA_BASE_URL || "https://moja.superfaktura.sk",
+      },
+    },
+    blog: {
+      resolve: "./src/modules/blog"
     }
   },
 });
